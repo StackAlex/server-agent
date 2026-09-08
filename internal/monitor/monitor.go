@@ -8,21 +8,23 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
+
+	"github.com/shirou/gopsutil/v4/disk"
+	"github.com/shirou/gopsutil/v4/load"
 )
 
 type Stats struct {
-	Timestamp time.Time `json:"timestamp"`
-	Hostname  string    `json:"hostname"`
-	OS        string    `json:"os"`
-	Arch      string    `json:"arch"`
-	CPU       CPUStats  `json:"cpu"`
+	Timestamp time.Time   `json:"timestamp"`
+	Hostname  string      `json:"hostname"`
+	OS        string      `json:"os"`
+	Arch      string      `json:"arch"`
+	CPU       CPUStats    `json:"cpu"`
 	Memory    MemoryStats `json:"memory"`
-	Disk      DiskStats `json:"disk"`
-	Load      LoadStats `json:"load"`
-	Uptime    string    `json:"uptime"`
-	Logs      []LogEntry `json:"logs"`
+	Disk      DiskStats   `json:"disk"`
+	Load      LoadStats   `json:"load"`
+	Uptime    string      `json:"uptime"`
+	Logs      []LogEntry  `json:"logs"`
 }
 
 type CPUStats struct {
@@ -43,8 +45,8 @@ type DiskStats struct {
 }
 
 type LoadStats struct {
-	OneMinute     float64 `json:"one_minute"`
-	FiveMinutes   float64 `json:"five_minutes"`
+	OneMinute      float64 `json:"one_minute"`
+	FiveMinutes    float64 `json:"five_minutes"`
 	FifteenMinutes float64 `json:"fifteen_minutes"`
 }
 
@@ -133,7 +135,7 @@ func cpuUsage() (float64, error) {
 			if total == 0 {
 				return 0, nil
 			}
-			return round((1 - float64(idle)/float64(total))*100), nil
+			return round((1 - float64(idle)/float64(total)) * 100), nil
 		}
 	}
 
@@ -182,17 +184,14 @@ func parseMemValue(line string) uint64 {
 }
 
 func diskStats() (DiskStats, error) {
-	var stat syscall.Statfs_t
-	if err := syscall.Statfs("/", &stat); err != nil {
+	usage, err := disk.Usage("/")
+	if err != nil {
 		return DiskStats{}, err
 	}
-	total := stat.Blocks * uint64(stat.Bsize)
-	free := stat.Bfree * uint64(stat.Bsize)
-	used := total - free
 	return DiskStats{
-		TotalGB: round(float64(total) / 1024 / 1024 / 1024),
-		UsedGB:  round(float64(used) / 1024 / 1024 / 1024),
-		Percent: round(float64(used) / float64(total) * 100),
+		TotalGB: round(float64(usage.Total) / 1024 / 1024 / 1024),
+		UsedGB:  round(float64(usage.Used) / 1024 / 1024 / 1024),
+		Percent: round(usage.UsedPercent),
 	}, nil
 }
 
@@ -200,14 +199,14 @@ func loadStats() (LoadStats, error) {
 	if runtime.GOOS != "linux" {
 		return LoadStats{}, nil
 	}
-	info := new(syscall.Sysinfo_t)
-	if err := syscall.Sysinfo(info); err != nil {
+	info, err := load.Avg()
+	if err != nil {
 		return LoadStats{}, err
 	}
 	return LoadStats{
-		OneMinute:      round(float64(info.Loads[0]) / 65535),
-		FiveMinutes:    round(float64(info.Loads[1]) / 65535),
-		FifteenMinutes: round(float64(info.Loads[2]) / 65535),
+		OneMinute:      round(info.Load1),
+		FiveMinutes:    round(info.Load5),
+		FifteenMinutes: round(info.Load15),
 	}, nil
 }
 

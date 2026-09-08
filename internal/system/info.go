@@ -7,7 +7,7 @@ import (
 	"github.com/shirou/gopsutil/v4/host"
 	"github.com/shirou/gopsutil/v4/mem"
 
-	"server-agent/internal/protocol"
+	"server-agent/protocol"
 )
 
 func GetServerInfo() (*protocol.ServerInfoPayload, error) {
