@@ -146,6 +146,9 @@ func (a *App) readLoop(ctx context.Context, client *websocket.Client) {
 			}
 
 			switch typ {
+			case "auth_ok":
+				agentID, _ := raw["agent_id"].(string)
+				log.Printf("Authentication successful! Agent ID: %s", agentID)
 			case "command.run":
 				log.Printf("Command received: %+v", raw)
 				// тут логика выполнения команды
