@@ -30,9 +30,19 @@ func (p *PTY) Write(data []byte) error {
 		return fmt.Errorf("PTY is not initialized")
 	}
 
-	_, err := p.File.Write(data)
-	if err != nil {
-		return fmt.Errorf("failed to write to PTY: %w", err)
+	written := 0
+
+	for written < len(data) {
+		n, err := p.File.Write(data[written:])
+		if err != nil {
+			return fmt.Errorf("failed to write to PTY: %w", err)
+		}
+
+		if n == 0 {
+			return fmt.Errorf("failed to write to PTY: zero bytes written")
+		}
+
+		written += n
 	}
 
 	return nil

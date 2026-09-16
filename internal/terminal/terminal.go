@@ -3,6 +3,7 @@ package terminal
 import (
 	"fmt"
 	"os/exec"
+	"sync"
 
 	"github.com/google/uuid"
 )
@@ -11,6 +12,8 @@ type Terminal struct {
 	ID  string
 	Cmd *exec.Cmd
 	PTY *PTY
+
+	writeMu sync.Mutex
 }
 
 func New(cols, rows int) (*Terminal, error) {
@@ -38,6 +41,9 @@ func (t *Terminal) Write(data []byte) error {
 	if t == nil || t.PTY == nil {
 		return fmt.Errorf("terminal is not initialized")
 	}
+
+	t.writeMu.Lock()
+	defer t.writeMu.Unlock()
 
 	return t.PTY.Write(data)
 }
