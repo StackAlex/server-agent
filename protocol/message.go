@@ -40,7 +40,7 @@ type MetricsPayload struct {
 
 	DiskUsage float64 `json:"disk_usage"`
 
-	NetworkIn uint64 `json:"network_in"`
+	NetworkIn  uint64 `json:"network_in"`
 	NetworkOut uint64 `json:"network_out"`
 
 	Uptime uint64 `json:"uptime"`

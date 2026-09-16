@@ -3,6 +3,8 @@ module server-agent
 go 1.22
 
 require (
+	github.com/creack/pty/v2 v2.0.1
+	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/shirou/gopsutil/v4 v4.24.12
 	gopkg.in/yaml.v3 v3.0.1
