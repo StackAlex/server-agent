@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -16,11 +17,8 @@ type Client struct {
 	conn    *websocket.Conn
 	headers http.Header
 	url     string
-}
 
-type Message struct {
-	Type    string          `json:"type"`
-	Payload json.RawMessage `json:"payload"`
+	writeMu sync.Mutex
 }
 
 func New(url string) *Client {
@@ -72,10 +70,15 @@ func (c *Client) Send(v any) error {
 	if c.conn == nil {
 		return fmt.Errorf("websocket not connected")
 	}
+
 	payload, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
+
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+
 	return c.conn.WriteMessage(websocket.TextMessage, payload)
 }
 

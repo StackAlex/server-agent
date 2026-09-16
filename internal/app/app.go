@@ -9,13 +9,16 @@ import (
 	"log"
 	"time"
 
+	"server-agent/internal/agent"
 	"server-agent/internal/config"
 	"server-agent/internal/monitor"
 	"server-agent/internal/websocket"
+	"server-agent/protocol"
 )
 
 type App struct {
-	Config *config.Config
+	Config          *config.Config
+	TerminalManager *agent.TerminalManager
 }
 
 func New() (*App, error) {
@@ -28,7 +31,7 @@ func New() (*App, error) {
 		return nil, fmt.Errorf("agent UUID is required in config")
 	}
 
-	return &App{Config: cfg}, nil
+	return &App{Config: cfg, TerminalManager: agent.NewTerminalManager()}, nil
 }
 
 func (a *App) Run(ctx context.Context) error {
@@ -39,6 +42,7 @@ func (a *App) Run(ctx context.Context) error {
 	// Инициализируем клиент ТОЛЬКО через New (без Dial)
 	client := websocket.New(a.Config.Panel.URL)
 
+	terminalManager := a.TerminalManager
 	// Устанавливаем заголовки для WebSocket handshake
 
 	log.Println("Connecting to panel...")
@@ -60,7 +64,7 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	// Отправляем auth-сообщение
-	err = client.Send(websocket.Message{
+	err = client.Send(protocol.Message{
 		Type:    "auth",
 		Payload: payloadBytes,
 	})
@@ -73,7 +77,7 @@ func (a *App) Run(ctx context.Context) error {
 
 	// Дальше твои рабочие циклы
 	go a.loop(ctx, client)
-	go a.readLoop(ctx, client)
+	go a.readLoop(ctx, client, terminalManager)
 
 	<-ctx.Done()
 
@@ -106,7 +110,7 @@ func (a *App) loop(ctx context.Context, client *websocket.Client) {
 				continue
 			}
 
-			msg := websocket.Message{
+			msg := protocol.Message{
 				Type:    "stats",
 				Payload: payload,
 			}
@@ -120,40 +124,134 @@ func (a *App) loop(ctx context.Context, client *websocket.Client) {
 	}
 }
 
-func (a *App) readLoop(ctx context.Context, client *websocket.Client) {
+func (a *App) readLoop(
+	ctx context.Context,
+	client *websocket.Client,
+	terminalManager *agent.TerminalManager,
+) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
+
 		default:
 			data, err := client.Read()
 			if err != nil {
 				log.Printf("read failed: %v", err)
-				return // разрыв соединения
+				return
 			}
 
-			log.Printf("received: %s", string(data))
+			var msg protocol.Message
 
-			var raw map[string]any
-			if uErr := json.Unmarshal(data, &raw); uErr != nil {
-				log.Printf("unmarshal failed: %v", uErr)
+			if err := json.Unmarshal(data, &msg); err != nil {
+				log.Printf("unmarshal message failed: %v", err)
 				continue
 			}
 
-			typ, ok := raw["type"].(string)
-			if !ok {
-				continue
-			}
+			log.Printf("received message: type=%s", msg.Type)
 
-			switch typ {
+			switch msg.Type {
+
 			case "auth_ok":
-				agentID, _ := raw["agent_id"].(string)
-				log.Printf("Authentication successful! Agent ID: %s", agentID)
+				var payload struct {
+					AgentID string `json:"agent_id"`
+				}
+
+				if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+					log.Printf("auth_ok payload error: %v", err)
+					continue
+				}
+
+				log.Printf(
+					"Authentication successful! Agent ID: %s",
+					payload.AgentID,
+				)
+
 			case "command.run":
-				log.Printf("Command received: %+v", raw)
-				// тут логика выполнения команды
+				log.Printf("Command received: %s", string(msg.Payload))
+
+			case "terminal:open":
+				var payload protocol.TerminalOpenPayload
+
+				if err := protocol.Decode(msg.Payload, &payload); err != nil {
+					log.Printf("terminal:open payload error: %v", err)
+					continue
+				}
+
+				if payload.Cols <= 0 {
+					payload.Cols = 120
+				}
+
+				if payload.Rows <= 0 {
+					payload.Rows = 30
+				}
+
+				if err := terminalManager.Open(
+					client,
+					msg.RequestID,
+					payload.Cols,
+					payload.Rows,
+				); err != nil {
+					log.Printf("terminal open failed: %v", err)
+				}
+
+			case "terminal:input":
+				var payload struct {
+					SessionID string `json:"session_id"`
+					Data      string `json:"data"`
+				}
+
+				if err := protocol.Decode(msg.Payload, &payload); err != nil {
+					log.Printf("terminal:input payload error: %v", err)
+					continue
+				}
+
+				if err := terminalManager.Input(
+					payload.SessionID,
+					payload.Data,
+				); err != nil {
+					log.Printf("terminal input failed: %v", err)
+				}
+
+			case "terminal:resize":
+				var payload struct {
+					SessionID string `json:"session_id"`
+					Cols      int    `json:"cols"`
+					Rows      int    `json:"rows"`
+				}
+
+				if err := protocol.Decode(msg.Payload, &payload); err != nil {
+					log.Printf("terminal:resize payload error: %v", err)
+					continue
+				}
+
+				if err := terminalManager.Resize(
+					payload.SessionID,
+					payload.Cols,
+					payload.Rows,
+				); err != nil {
+					log.Printf("terminal resize failed: %v", err)
+				}
+
+			case "terminal:close":
+				var payload struct {
+					SessionID string `json:"session_id"`
+					Reason    string `json:"reason"`
+				}
+
+				if err := protocol.Decode(msg.Payload, &payload); err != nil {
+					log.Printf("terminal:close payload error: %v", err)
+					continue
+				}
+
+				terminalManager.Close(
+					client,
+					payload.SessionID,
+					payload.Reason,
+				)
+
 			default:
-				log.Printf("Unknown message type: %s", typ)
+				log.Printf("Unknown message type: %s", msg.Type)
 			}
 		}
 	}
