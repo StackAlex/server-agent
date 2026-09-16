@@ -75,6 +75,8 @@ func (m *TerminalManager) readLoop(
 		n, err := t.Read(buffer)
 
 		if n > 0 {
+			log.Printf("[PTY OUTPUT] n=%d data=%q", n, string(buffer[:n]))
+
 			payload, marshalErr := json.Marshal(map[string]string{
 				"session_id": t.ID,
 				"data":       string(buffer[:n]),
