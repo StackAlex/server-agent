@@ -167,6 +167,9 @@ func (a *App) readLoop(
 					payload.AgentID,
 				)
 
+			case "auth:error":
+				log.Printf("AUTH ERROR: %+v", msg)
+
 			case "command.run":
 				log.Printf("Command received: %s", string(msg.Payload))
 
