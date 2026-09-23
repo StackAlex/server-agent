@@ -152,7 +152,7 @@ func (a *App) readLoop(
 
 			switch msg.Type {
 
-			case "auth_ok":
+			case "auth:success":
 				var payload struct {
 					AgentID string `json:"agent_id"`
 				}
