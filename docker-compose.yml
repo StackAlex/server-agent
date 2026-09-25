@@ -1,0 +1,12 @@
+services:
+  server-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: server-agent
+
+    restart: unless-stopped
+
+    environment:
+      TZ: Europe/Moscow
