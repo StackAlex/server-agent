@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"sync"
 
@@ -21,6 +22,12 @@ func New(cols, rows int) (*Terminal, error) {
 
 	// Запускаем терминал из домашней директории пользователя
 	cmd.Dir = "/home/webadmin"
+
+	cmd.Env = append(
+		os.Environ(),
+		"TERM=xterm-256color",
+		"COLORTERM=truecolor",
+	)
 
 	ptmx, err := Start(cmd)
 	if err != nil {
