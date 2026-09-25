@@ -60,10 +60,14 @@ func (c *Client) Connect(ctx context.Context) error {
 }
 
 func (c *Client) Close() error {
-	if c.conn != nil {
-		return c.conn.Close()
+	if c.conn == nil {
+		return nil
 	}
-	return nil
+
+	err := c.conn.Close()
+	c.conn = nil
+
+	return err
 }
 
 func (c *Client) Send(v any) error {

@@ -11,7 +11,7 @@ type Config struct {
 	Agent struct {
 		UUID    string `yaml:"uuid"`
 		Name    string `yaml:"name"`
-		Version string `yamal"verison`
+		Version string `yaml:"version"`
 	} `yaml:"agent"`
 
 	Panel struct {

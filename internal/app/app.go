@@ -39,52 +39,127 @@ func (a *App) Run(ctx context.Context) error {
 	log.Println("Panel URL:", a.Config.Panel.URL)
 	log.Println("Agent ID:", a.Config.Agent.UUID)
 
-	// Инициализируем клиент ТОЛЬКО через New (без Dial)
-	client := websocket.New(a.Config.Panel.URL)
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("Stopping Server Agent")
+			return nil
 
-	terminalManager := a.TerminalManager
-	// Устанавливаем заголовки для WebSocket handshake
+		default:
+		}
 
-	log.Println("Connecting to panel...")
-	if err := client.Connect(ctx); err != nil {
-		log.Printf("Connect failed: %v", err)
-		return fmt.Errorf("failed to connect to panel: %w", err)
-	}
-	log.Println("Connected to panel")
+		// Создаём новый WebSocket client для каждого подключения.
+		client := websocket.New(a.Config.Panel.URL)
 
-	payloadData := map[string]any{
-		"type":       "agent",
-		"agent_id":   a.Config.Agent.UUID,
-		"agent_name": a.Config.Agent.Name,
-		"token":      a.Config.Panel.Token,
-	}
+		log.Println("Connecting to panel...")
 
-	payloadBytes, err := json.Marshal(payloadData)
-	if err != nil {
-		return fmt.Errorf("failed to marshal auth payload: %w", err)
-	}
+		if err := client.Connect(ctx); err != nil {
+			log.Printf("Connect failed: %v", err)
 
-	// Отправляем auth-сообщение
-	err = client.Send(protocol.Message{
-		Type:    "auth",
-		Payload: payloadBytes,
-	})
-	if err != nil {
-		log.Printf("Failed to send auth message: %v", err)
+			select {
+			case <-ctx.Done():
+				return nil
+
+			case <-time.After(5 * time.Second):
+				continue
+			}
+		}
+
+		log.Println("Connected to panel")
+
+		// ============================================
+		// AUTH
+		// ============================================
+
+		payloadData := map[string]any{
+			"type":       "agent",
+			"agent_id":   a.Config.Agent.UUID,
+			"agent_name": a.Config.Agent.Name,
+			"token":      a.Config.Panel.Token,
+		}
+
+		payloadBytes, err := json.Marshal(payloadData)
+		if err != nil {
+			log.Printf("Failed to marshal auth payload: %v", err)
+			client.Close()
+
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(5 * time.Second):
+				continue
+			}
+		}
+
+		err = client.Send(protocol.Message{
+			Type:    "auth",
+			Payload: payloadBytes,
+		})
+
+		if err != nil {
+			log.Printf("Failed to send auth message: %v", err)
+			client.Close()
+
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(5 * time.Second):
+				continue
+			}
+		}
+
+		log.Println("Auth message sent")
+
+		// ============================================
+		// RUN CONNECTION
+		// ============================================
+
+		connectionCtx, cancel := context.WithCancel(ctx)
+
+		done := make(chan struct{}, 2)
+
+		go func() {
+			a.loop(connectionCtx, client)
+			done <- struct{}{}
+		}()
+
+		go func() {
+			a.readLoop(
+				connectionCtx,
+				client,
+				a.TerminalManager,
+			)
+			done <- struct{}{}
+		}()
+
+		// Ждём завершения одного из циклов.
+		// Если WebSocket умер — один из них вернётся.
+		select {
+		case <-ctx.Done():
+			cancel()
+			client.Close()
+
+			return nil
+
+		case <-done:
+			log.Println("Panel connection lost")
+			cancel()
+			client.Close()
+		}
+
+		cancel()
 		client.Close()
-		return fmt.Errorf("auth send failed: %w", err)
+
+		log.Println("Disconnected from panel")
+		log.Println("Reconnecting in 5 seconds...")
+
+		select {
+		case <-ctx.Done():
+			return nil
+
+		case <-time.After(5 * time.Second):
+		}
 	}
-	log.Println("Auth message sent")
-
-	// Дальше твои рабочие циклы
-	go a.loop(ctx, client)
-	go a.readLoop(ctx, client, terminalManager)
-
-	<-ctx.Done()
-
-	log.Println("Stopping Server Agent")
-	client.Close()
-	return nil
 }
 
 func (a *App) loop(ctx context.Context, client *websocket.Client) {
