@@ -10,3 +10,8 @@ services:
 
     environment:
       TZ: Europe/Moscow
+
+    volumes:
+      - /:/host
+
+    privileged: true

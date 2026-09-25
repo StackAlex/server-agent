@@ -2,7 +2,6 @@ package terminal
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"sync"
 
@@ -21,12 +20,7 @@ func New(cols, rows int) (*Terminal, error) {
 	cmd := exec.Command("/bin/bash", "-l")
 
 	// Запускаем терминал из домашней директории пользователя
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get home directory: %w", err)
-	}
-
-	cmd.Dir = homeDir
+	cmd.Dir = "/home/webadmin"
 
 	ptmx, err := Start(cmd)
 	if err != nil {
