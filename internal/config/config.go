@@ -34,6 +34,10 @@ type Config struct {
 	Logger struct {
 		Level string `yaml:"level"`
 	} `yaml:"logger"`
+
+	Docker struct {
+		ProjectDir string `yaml:"project_dir"`
+	} `yaml:"docker"`
 }
 
 func Load(path string) (*Config, error) {

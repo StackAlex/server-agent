@@ -1,7 +1,7 @@
 
 agent:
   uuid: "b86a756d-254d-47db-b48f-87c7e390d63d"
-  name: "ServerAlexStack"
+  name: "ServerAlexStackAgent"
   version: "0.1.0"
 
 panel:
@@ -19,3 +19,6 @@ monitor:
 
 logger:
   level: "info"
+
+docker:
+  project_dir: "../server-dashboard-data"

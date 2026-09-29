@@ -11,6 +11,7 @@ import (
 
 	"server-agent/internal/agent"
 	"server-agent/internal/config"
+	"server-agent/internal/docker"
 	"server-agent/internal/monitor"
 	"server-agent/internal/websocket"
 	"server-agent/protocol"
@@ -329,9 +330,59 @@ func (a *App) readLoop(
 					payload.Reason,
 				)
 
+			case "docker:containers":
+				log.Println("Docker containers request received")
+
+				containers, err := docker.GetContainers(
+					a.Config.Docker.ProjectDir,
+				)
+
+				if err != nil {
+					log.Printf(
+						"get docker containers failed: %v",
+						err,
+					)
+
+					if err := client.Send(protocol.Message{
+						Type:      "docker:containers:error",
+						RequestID: msg.RequestID,
+						Payload: mustJSON(map[string]any{
+							"error": err.Error(),
+						}),
+					}); err != nil {
+						log.Printf(
+							"send docker containers error failed: %v",
+							err,
+						)
+					}
+
+					continue
+				}
+
+				if err := client.Send(protocol.Message{
+					Type:      "docker:containers:result",
+					RequestID: msg.RequestID,
+					Payload: mustJSON(map[string]any{
+						"containers": containers,
+					}),
+				}); err != nil {
+					log.Printf(
+						"send docker containers result failed: %v",
+						err,
+					)
+				}
+
 			default:
 				log.Printf("Unknown message type: %s", msg.Type)
 			}
 		}
 	}
+}
+func mustJSON(v any) []byte {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return []byte(`{"error":"failed to marshal response"}`)
+	}
+
+	return data
 }
