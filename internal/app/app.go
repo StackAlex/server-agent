@@ -39,6 +39,7 @@ func (a *App) Run(ctx context.Context) error {
 	log.Println("Server Agent started")
 	log.Println("Panel URL:", a.Config.Panel.URL)
 	log.Println("Agent ID:", a.Config.Agent.UUID)
+	monitor.StartNetworkMonitor(ctx)
 
 	for {
 		select {

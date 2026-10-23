@@ -15,16 +15,17 @@ import (
 )
 
 type Stats struct {
-	Timestamp time.Time   `json:"timestamp"`
-	Hostname  string      `json:"hostname"`
-	OS        string      `json:"os"`
-	Arch      string      `json:"arch"`
-	CPU       CPUStats    `json:"cpu"`
-	Memory    MemoryStats `json:"memory"`
-	Disk      DiskStats   `json:"disk"`
-	Load      LoadStats   `json:"load"`
-	Uptime    string      `json:"uptime"`
-	Logs      []LogEntry  `json:"logs"`
+	Timestamp time.Time    `json:"timestamp"`
+	Hostname  string       `json:"hostname"`
+	OS        string       `json:"os"`
+	Arch      string       `json:"arch"`
+	CPU       CPUStats     `json:"cpu"`
+	Memory    MemoryStats  `json:"memory"`
+	Disk      DiskStats    `json:"disk"`
+	Load      LoadStats    `json:"load"`
+	Network   NetworkSpeed `json:"network"`
+	Uptime    string       `json:"uptime"`
+	Logs      []LogEntry   `json:"logs"`
 }
 
 type CPUStats struct {
@@ -88,6 +89,7 @@ func Collect() (*Stats, error) {
 	}
 	stats.Load = load
 
+	stats.Network = GetNetworkSpeed()
 	stats.Uptime = uptime()
 	stats.Logs = recentLogs()
 
